@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    // Only owners can invite as admin or owner
-    if ((inviteRole === 'admin' || inviteRole === 'owner') && role !== 'owner') {
-      return NextResponse.json({ error: 'Only owners can invite admins or owners' }, { status: 403 })
+    // Only owners and admins can invite as admin or owner
+    if ((inviteRole === 'admin' || inviteRole === 'owner') && role !== 'owner' && role !== 'admin') {
+      return NextResponse.json({ error: 'Only owners and admins can invite admins or owners' }, { status: 403 })
     }
 
     const adminSupabase = createAdminClient()

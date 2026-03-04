@@ -36,7 +36,7 @@ export function InviteDialog({ onInviteSent }: InviteDialogProps) {
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const { apiFetch } = useApi()
-  const { isOwner } = usePermissions()
+  const { isOwner, isAdmin } = usePermissions()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,8 +117,8 @@ export function InviteDialog({ onInviteSent }: InviteDialogProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="member">Member</SelectItem>
-                  {isOwner && <SelectItem value="admin">Admin</SelectItem>}
-                  {isOwner && <SelectItem value="owner">Owner</SelectItem>}
+                  {(isOwner || isAdmin) && <SelectItem value="admin">Admin</SelectItem>}
+                  {(isOwner || isAdmin) && <SelectItem value="owner">Owner</SelectItem>}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
