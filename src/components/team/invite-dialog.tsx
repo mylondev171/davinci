@@ -31,7 +31,7 @@ interface InviteDialogProps {
 export function InviteDialog({ onInviteSent }: InviteDialogProps) {
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'member' | 'admin'>('member')
+  const [role, setRole] = useState<'member' | 'admin' | 'owner'>('member')
   const [sending, setSending] = useState(false)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -111,17 +111,20 @@ export function InviteDialog({ onInviteSent }: InviteDialogProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="invite-role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as 'member' | 'admin')}>
+              <Select value={role} onValueChange={(v) => setRole(v as 'member' | 'admin' | 'owner')}>
                 <SelectTrigger id="invite-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="member">Member</SelectItem>
                   {isOwner && <SelectItem value="admin">Admin</SelectItem>}
+                  {isOwner && <SelectItem value="owner">Owner</SelectItem>}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {role === 'admin'
+                {role === 'owner'
+                  ? 'Owners have full control. Only one owner per organization.'
+                  : role === 'admin'
                   ? 'Admins can manage team members and delete resources.'
                   : 'Members can view and edit CRM data but cannot delete resources.'}
               </p>

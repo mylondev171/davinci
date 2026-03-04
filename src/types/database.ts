@@ -455,7 +455,7 @@ export type Database = {
           id: string
           org_id: string
           email: string
-          role: 'admin' | 'member'
+          role: 'owner' | 'admin' | 'member'
           invited_by: string
           token: string
           status: 'pending' | 'accepted' | 'expired' | 'revoked'
@@ -466,7 +466,7 @@ export type Database = {
         Insert: {
           org_id: string
           email: string
-          role?: 'admin' | 'member'
+          role?: 'owner' | 'admin' | 'member'
           invited_by: string
           token?: string
           status?: 'pending' | 'accepted' | 'expired' | 'revoked'

@@ -31,12 +31,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 })
   }
 
-  // Only owners can invite as admin
-  if (inviteRole === 'admin' && role !== 'owner') {
-    return NextResponse.json({ error: 'Only owners can invite admins' }, { status: 403 })
+  // Only owners can invite as admin or owner
+  if ((inviteRole === 'admin' || inviteRole === 'owner') && role !== 'owner') {
+    return NextResponse.json({ error: 'Only owners can invite admins or owners' }, { status: 403 })
   }
 
   const adminSupabase = createAdminClient()
+
+  // Enforce single owner per org
+  if (inviteRole === 'owner') {
+    const { data: existingOwner } = await adminSupabase
+      .from('memberships')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('role', 'owner')
+      .limit(1)
+      .maybeSingle()
+
+    const { data: pendingOwnerInvite } = await adminSupabase
+      .from('org_invitations')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('role', 'owner')
+      .eq('status', 'pending')
+      .limit(1)
+      .maybeSingle()
+
+    if (existingOwner || pendingOwnerInvite) {
+      return NextResponse.json(
+        { error: 'This organization already has an owner or a pending owner invitation' },
+        { status: 409 }
+      )
+    }
+  }
 
   // Check if user is already a member
   const { data: existingMember } = await adminSupabase
