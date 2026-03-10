@@ -5,8 +5,7 @@ export type Permission =
   | 'delete'
   | 'invite'
   | 'manage_roles'
-  | 'manage_semrush'
-  | 'manage_reportgarden'
+  | 'manage_integrations'
 
 export type Role = 'owner' | 'admin' | 'member'
 
@@ -17,8 +16,7 @@ const PERMISSION_MAP: Record<Permission, Role[]> = {
   delete: ['owner', 'admin'],
   invite: ['owner', 'admin'],
   manage_roles: ['owner', 'admin'],
-  manage_semrush: ['owner'],
-  manage_reportgarden: ['owner'],
+  manage_integrations: ['owner', 'admin'],
 }
 
 export function hasPermission(role: Role, permission: Permission): boolean {

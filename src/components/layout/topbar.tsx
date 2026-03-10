@@ -108,6 +108,10 @@ export function Topbar() {
   }, [apiFetch, currentOrg])
 
   useEffect(() => {
+    if (!query.trim()) {
+      setResults([])
+      return
+    }
     const timer = setTimeout(() => fetchResults(query), 300)
     return () => clearTimeout(timer)
   }, [query, fetchResults])

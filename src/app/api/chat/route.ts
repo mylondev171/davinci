@@ -1,5 +1,5 @@
-import { google } from '@ai-sdk/google'
 import { streamText, stepCountIs, convertToModelMessages } from 'ai'
+import { getAiModel } from '@/lib/ai/get-model'
 import { getCrmTools } from '@/lib/gemini/tools'
 import { getSystemPrompt } from '@/lib/gemini/system-prompt'
 import { createClient } from '@/lib/supabase/server'
@@ -49,8 +49,9 @@ export async function POST(request: Request) {
   const role = (membership?.role as Role) || 'member'
 
   try {
+    const model = await getAiModel(orgId)
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model,
       system: getSystemPrompt(orgId, role),
       messages: await convertToModelMessages(messages),
       tools: getCrmTools(orgId, user.id, role),
