@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOrg } from '@/providers/org-provider'
+import { useApi } from '@/lib/hooks/use-api'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,17 +13,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from '@/components/ui/command'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Search, LogOut, Building2, ChevronDown, Sun, Moon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Search, LogOut, Building2, ChevronDown, Sun, Moon, Users, FolderKanban } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
 import { useTheme } from '@/providers/theme-provider'
+
+type SearchResult = {
+  id: string
+  label: string
+  sublabel?: string
+  type: 'client' | 'project' | 'task'
+  href: string
+}
 
 export function Topbar() {
   const router = useRouter()
   const supabase = createClient()
   const { currentOrg, organizations, switchOrg } = useOrg()
+  const { apiFetch } = useApi()
   const { theme, setTheme } = useTheme()
   const [user, setUser] = useState<{ email?: string; full_name?: string; avatar_url?: string } | null>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -38,6 +60,64 @@ export function Topbar() {
     getUser()
   }, [supabase])
 
+  // Ctrl+K to open
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
+
+  // Fetch search results
+  const fetchResults = useCallback(async (q: string) => {
+    if (!q.trim() || !currentOrg) {
+      setResults([])
+      return
+    }
+    setSearching(true)
+    try {
+      const params = new URLSearchParams({ search: q })
+      const [clientsRes, projectsRes] = await Promise.allSettled([
+        apiFetch(`/api/clients?${params}`),
+        apiFetch(`/api/projects?${params}`),
+      ])
+
+      const newResults: SearchResult[] = []
+
+      if (clientsRes.status === 'fulfilled') {
+        for (const c of (clientsRes.value.data || []).slice(0, 5)) {
+          newResults.push({ id: c.id, label: c.company_name, sublabel: c.industry || undefined, type: 'client', href: `/clients/${c.id}` })
+        }
+      }
+      if (projectsRes.status === 'fulfilled') {
+        for (const p of (projectsRes.value.data || []).slice(0, 5)) {
+          newResults.push({ id: p.id, label: p.name, sublabel: p.clients?.company_name || undefined, type: 'project', href: `/projects/${p.id}` })
+        }
+      }
+
+      setResults(newResults)
+    } catch {
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }, [apiFetch, currentOrg])
+
+  useEffect(() => {
+    const timer = setTimeout(() => fetchResults(query), 300)
+    return () => clearTimeout(timer)
+  }, [query, fetchResults])
+
+  const handleSelect = (href: string) => {
+    setOpen(false)
+    setQuery('')
+    router.push(href)
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -49,16 +129,60 @@ export function Topbar() {
     .join('')
     .toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'
 
+  const clientResults = results.filter((r) => r.type === 'client')
+  const projectResults = results.filter((r) => r.type === 'project')
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-6">
       {/* Search */}
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground w-96">
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground w-96 cursor-pointer hover:bg-accent/50 transition-colors"
+      >
         <Search className="h-4 w-4" />
         <span>Search clients, projects, tasks...</span>
         <kbd className="ml-auto rounded border border-border bg-accent px-1.5 py-0.5 text-xs text-muted-foreground">
           Ctrl+K
         </kbd>
-      </div>
+      </button>
+
+      <CommandDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQuery('') }}>
+        <CommandInput
+          placeholder="Search clients, projects, tasks..."
+          value={query}
+          onValueChange={setQuery}
+        />
+        <CommandList>
+          {!searching && query.trim() && results.length === 0 && (
+            <CommandEmpty>No results found.</CommandEmpty>
+          )}
+          {!query.trim() && (
+            <CommandEmpty>Start typing to search...</CommandEmpty>
+          )}
+          {clientResults.length > 0 && (
+            <CommandGroup heading="Clients">
+              {clientResults.map((r) => (
+                <CommandItem key={r.id} onSelect={() => handleSelect(r.href)}>
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span>{r.label}</span>
+                  {r.sublabel && <span className="text-muted-foreground text-xs ml-1">— {r.sublabel}</span>}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {projectResults.length > 0 && (
+            <CommandGroup heading="Projects">
+              {projectResults.map((r) => (
+                <CommandItem key={r.id} onSelect={() => handleSelect(r.href)}>
+                  <FolderKanban className="h-4 w-4 shrink-0" />
+                  <span>{r.label}</span>
+                  {r.sublabel && <span className="text-muted-foreground text-xs ml-1">— {r.sublabel}</span>}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+        </CommandList>
+      </CommandDialog>
 
       <div className="flex items-center gap-3">
         {/* Theme Toggle */}
