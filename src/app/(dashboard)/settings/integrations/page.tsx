@@ -92,16 +92,25 @@ function IntegrationsContent() {
     if (!currentOrg || !apiKey.trim()) return
     setSaving(provider)
     try {
-      const { error } = await supabase.from('integration_credentials').upsert(
-        {
-          org_id: currentOrg.id,
-          provider,
-          api_key: apiKey,
-          is_active: true,
-          connected_by: (await supabase.auth.getUser()).data.user?.id,
-        },
-        { onConflict: 'org_id,provider' }
-      )
+      const connectedBy = (await supabase.auth.getUser()).data.user?.id
+
+      const { data: existing } = await supabase
+        .from('integration_credentials')
+        .select('id')
+        .eq('org_id', currentOrg.id)
+        .eq('provider', provider)
+        .is('user_id', null)
+        .single()
+
+      const { error } = existing
+        ? await supabase
+            .from('integration_credentials')
+            .update({ api_key: apiKey, is_active: true, connected_by: connectedBy })
+            .eq('id', existing.id)
+        : await supabase
+            .from('integration_credentials')
+            .insert({ org_id: currentOrg.id, provider, api_key: apiKey, is_active: true, connected_by: connectedBy })
+
       if (error) throw error
       toast.success(`${provider} connected!`)
       fetchIntegrations()
