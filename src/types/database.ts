@@ -211,6 +211,7 @@ export type Database = {
           tags: string[]
           completed_at: string | null
           archived_at: string | null
+          billable: boolean
           created_at: string
           updated_at: string
         }
@@ -242,6 +243,7 @@ export type Database = {
           tags?: string[]
           completed_at?: string | null
           archived_at?: string | null
+          billable?: boolean
         }
       }
       notes: {
