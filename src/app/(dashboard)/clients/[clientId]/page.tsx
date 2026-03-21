@@ -27,6 +27,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { CredentialForm } from '@/components/clients/credential-form'
+import { ClientTimesheetTab } from '@/components/clients/timesheet-tab'
+import { ClientTasksTab } from '@/components/clients/tasks-tab'
 import { ArrowLeft, Globe, Mail, Phone, Trash2, Pin, Edit, Eye, EyeOff, Copy, ExternalLink, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
@@ -214,6 +216,8 @@ export default function ClientDetailPage() {
           <TabsTrigger value="projects">Projects ({client.projects?.length || 0})</TabsTrigger>
           <TabsTrigger value="credentials">Credentials ({credentials.length})</TabsTrigger>
           <TabsTrigger value="notes">Notes ({client.notes?.length || 0})</TabsTrigger>
+          <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
@@ -437,6 +441,18 @@ export default function ClientDetailPage() {
               </CardContent>
             </Card>
           ))}
+        </TabsContent>
+
+        <TabsContent value="timesheets" className="mt-6">
+          <ClientTimesheetTab
+            clientId={clientId}
+            clientName={client.company_name}
+            projects={client.projects || []}
+          />
+        </TabsContent>
+
+        <TabsContent value="tasks" className="mt-6">
+          <ClientTasksTab clientId={clientId} />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
