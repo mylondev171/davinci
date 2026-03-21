@@ -9,8 +9,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { TimeEntryForm } from '@/components/tasks/time-entry-form'
+import { TaskForm } from '@/components/tasks/task-form'
+import { TimerWidget } from '@/components/tasks/timer-widget'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Archive, Trash2, Calendar } from 'lucide-react'
+import { Archive, Trash2, Calendar, Pencil } from 'lucide-react'
 import { statusDot } from '@/lib/task-colors'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
@@ -29,6 +31,7 @@ export function ClientTasksTab({ clientId }: Props) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active')
+  const [clientProjects, setClientProjects] = useState<{ id: string; name: string }[]>([])
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
@@ -46,6 +49,12 @@ export function ClientTasksTab({ clientId }: Props) {
   }, [apiFetch, clientId, activeTab])
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
+
+  useEffect(() => {
+    apiFetch(`/api/projects?client_id=${clientId}`)
+      .then(({ data }) => setClientProjects(data || []))
+      .catch(() => {})
+  }, [apiFetch, clientId])
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
@@ -72,6 +81,9 @@ export function ClientTasksTab({ clientId }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end mb-2">
+        <TaskForm projects={clientProjects} onSuccess={fetchTasks} />
+      </div>
       <div className="flex gap-2">
         {(['active', 'completed'] as const).map((tab) => (
           <button
@@ -155,10 +167,23 @@ export function ClientTasksTab({ clientId }: Props) {
                     ) : '—'}
                   </TableCell>
                   <TableCell>
-                    <TimeEntryForm taskId={task.id} taskTitle={task.title} />
+                    <div className="flex items-center gap-1">
+                      <TimerWidget taskId={task.id} taskTitle={task.title} defaultBillable={task.billable} />
+                      <TimeEntryForm taskId={task.id} taskTitle={task.title} defaultBillable={task.billable} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <TaskForm
+                        projectId={task.project_id}
+                        task={{ id: task.id, project_id: task.project_id, title: task.title, description: task.description, status: task.status, priority: task.priority, due_date: task.due_date, assignee_id: task.assignee_id, billable: task.billable }}
+                        onSuccess={fetchTasks}
+                        trigger={
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" title="Edit task">
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        }
+                      />
                       <Button
                         variant="ghost" size="sm"
                         className="h-6 w-6 p-0 text-muted-foreground hover:text-orange-400"
