@@ -88,6 +88,36 @@ function IntegrationsContent() {
     window.location.href = `/api/google/connect?orgId=${currentOrg.id}`
   }
 
+  const handleDisconnect = async (provider: string) => {
+    if (!currentOrg) return
+    setSaving(provider)
+    try {
+      const { data: existing } = await supabase
+        .from('integration_credentials')
+        .select('id')
+        .eq('org_id', currentOrg.id)
+        .eq('provider', provider)
+        .is('user_id', null)
+        .single()
+
+      if (existing) {
+        const { error } = await supabase
+          .from('integration_credentials')
+          .update({ is_active: false, api_key: null })
+          .eq('id', existing.id)
+        if (error) throw error
+      }
+      toast.success(`${provider} disconnected`)
+      if (provider === 'claude') setClaudeKey('')
+      if (provider === 'gemini') setGeminiKey('')
+      fetchIntegrations()
+    } catch {
+      toast.error(`Failed to disconnect ${provider}`)
+    } finally {
+      setSaving(null)
+    }
+  }
+
   const handleSaveApiKey = async (provider: string, apiKey: string) => {
     if (!currentOrg || !apiKey.trim()) return
     setSaving(provider)
@@ -185,6 +215,15 @@ function IntegrationsContent() {
                       >
                         {saving === 'claude' ? 'Saving...' : 'Save'}
                       </Button>
+                      {isOrgConnected('claude') && (
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleDisconnect('claude')}
+                          disabled={saving === 'claude'}
+                        >
+                          Disconnect
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -244,6 +283,15 @@ function IntegrationsContent() {
                       >
                         {saving === 'gemini' ? 'Saving...' : 'Save'}
                       </Button>
+                      {isOrgConnected('gemini') && (
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleDisconnect('gemini')}
+                          disabled={saving === 'gemini'}
+                        >
+                          Disconnect
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -292,9 +340,14 @@ function IntegrationsContent() {
             </CardHeader>
             <CardContent>
               {myGoogleConnected ? (
-                <p className="text-sm text-muted-foreground">
-                  Connected as {myGoogleConnected.account_email}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Connected as {myGoogleConnected.account_email}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={handleConnectGoogle}>
+                    Refresh Access
+                  </Button>
+                </div>
               ) : (
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">
