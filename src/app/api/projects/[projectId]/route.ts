@@ -18,31 +18,34 @@ export async function GET(
       clients(id, company_name),
       tasks(*),
       milestones(*),
-      project_members(user_id, role, profiles:user_id(full_name, avatar_url))
+      project_members(user_id, role)
     `)
     .eq('id', projectId)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
 
-  // Fetch assignee profiles separately (no direct FK Supabase can follow)
-  const assigneeIds = [...new Set(
-    (data.tasks ?? [])
+  // Collect all user IDs: task assignees + project members
+  const allUserIds = [...new Set([
+    ...(data.tasks ?? [])
       .map((t: { assignee_id: string | null }) => t.assignee_id)
-      .filter(Boolean)
-  )] as string[]
+      .filter(Boolean),
+    ...(data.project_members ?? [])
+      .map((m: { user_id: string }) => m.user_id)
+      .filter(Boolean),
+  ])] as string[]
 
   let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {}
-  if (assigneeIds.length > 0) {
+  if (allUserIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, full_name, avatar_url')
-      .in('id', assigneeIds)
+      .in('id', allUserIds)
     if (profiles) {
       profilesMap = Object.fromEntries(
         profiles.map((p: { id: string; full_name: string | null; avatar_url: string | null }) => [
           p.id,
-          { full_name: p.full_name, avatar_url: p.avatar_url }
+          { full_name: p.full_name, avatar_url: p.avatar_url },
         ])
       )
     }
@@ -55,7 +58,14 @@ export async function GET(
     })
   )
 
-  return NextResponse.json({ data: { ...data, tasks: tasksWithProfiles } })
+  const membersWithProfiles = (data.project_members ?? []).map(
+    (member: { user_id: string; [key: string]: unknown }) => ({
+      ...member,
+      profiles: profilesMap[member.user_id] ?? null,
+    })
+  )
+
+  return NextResponse.json({ data: { ...data, tasks: tasksWithProfiles, project_members: membersWithProfiles } })
 }
 
 export async function PUT(
