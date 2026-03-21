@@ -13,14 +13,32 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('tasks')
-    .select('*, profiles:assignee_id(full_name, avatar_url)')
+    .select('*')
     .eq('project_id', projectId)
+    .is('archived_at', null)
     .order('position')
     .order('created_at')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ data })
+  const assigneeIds = [...new Set(data?.map(t => t.assignee_id).filter(Boolean))] as string[]
+  let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {}
+  if (assigneeIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', assigneeIds)
+    if (profiles) {
+      profilesMap = Object.fromEntries(profiles.map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]))
+    }
+  }
+
+  const tasksWithProfiles = data?.map(task => ({
+    ...task,
+    profiles: task.assignee_id ? profilesMap[task.assignee_id] ?? null : null,
+  }))
+
+  return NextResponse.json({ data: tasksWithProfiles })
 }
 
 export async function POST(
@@ -44,10 +62,21 @@ export async function POST(
   const { data, error } = await supabase
     .from('tasks')
     .insert({ ...body, project_id: projectId, org_id: orgId })
-    .select('*, profiles:assignee_id(full_name, avatar_url)')
+    .select('*')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fetch assignee profile separately
+  let profiles = null
+  if (data.assignee_id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('id', data.assignee_id)
+      .single()
+    profiles = profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url } : null
+  }
 
   await supabase.from('activities').insert({
     org_id: orgId,
@@ -59,5 +88,5 @@ export async function POST(
     title: `Created task "${data.title}"`,
   })
 
-  return NextResponse.json({ data }, { status: 201 })
+  return NextResponse.json({ data: { ...data, profiles } }, { status: 201 })
 }
