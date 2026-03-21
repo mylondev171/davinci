@@ -15,17 +15,29 @@ import { Plus } from 'lucide-react'
 interface Member { user_id: string; profiles: { id: string; full_name: string | null; avatar_url: string | null } | null }
 
 interface TaskFormProps {
-  projectId: string
-  task?: { id: string; title: string; description: string | null; status: string; priority: string; due_date: string | null; assignee_id: string | null }
+  projectId?: string
+  projects?: { id: string; name: string }[]
+  task?: {
+    id: string
+    project_id: string
+    title: string
+    description: string | null
+    status: string
+    priority: string
+    due_date: string | null
+    assignee_id: string | null
+    billable: boolean
+  }
   defaultStatus?: string
   onSuccess?: () => void
   trigger?: React.ReactNode
 }
 
-export function TaskForm({ projectId, task, defaultStatus, onSuccess, trigger }: TaskFormProps) {
+export function TaskForm({ projectId, projects, task, defaultStatus, onSuccess, trigger }: TaskFormProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState(projectId || task?.project_id || '')
   const { apiFetch } = useApi()
 
   const [formData, setFormData] = useState({
@@ -35,10 +47,12 @@ export function TaskForm({ projectId, task, defaultStatus, onSuccess, trigger }:
     priority: task?.priority || 'medium',
     due_date: task?.due_date || '',
     assignee_id: task?.assignee_id || '',
+    billable: task?.billable ?? true,
   })
 
   useEffect(() => {
     if (open) {
+      setSelectedProjectId(projectId || task?.project_id || '')
       setFormData({
         title: task?.title || '',
         description: task?.description || '',
@@ -46,12 +60,13 @@ export function TaskForm({ projectId, task, defaultStatus, onSuccess, trigger }:
         priority: task?.priority || 'medium',
         due_date: task?.due_date || '',
         assignee_id: task?.assignee_id || '',
+        billable: task?.billable ?? true,
       })
       if (members.length === 0) {
         apiFetch('/api/memberships').then(({ data }) => setMembers(data || [])).catch(() => {})
       }
     }
-  }, [open, task, defaultStatus, members.length, apiFetch])
+  }, [open, task, defaultStatus, projectId, members.length, apiFetch])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,11 +77,12 @@ export function TaskForm({ projectId, task, defaultStatus, onSuccess, trigger }:
         await apiFetch('/api/tasks', { method: 'PUT', body: JSON.stringify({ id: task.id, ...payload }) })
         toast.success('Task updated')
       } else {
-        await apiFetch(`/api/projects/${projectId}/tasks`, { method: 'POST', body: JSON.stringify(payload) })
+        await apiFetch(`/api/projects/${selectedProjectId}/tasks`, { method: 'POST', body: JSON.stringify(payload) })
         toast.success('Task created')
       }
       setOpen(false)
-      setFormData({ title: '', description: '', status: defaultStatus || 'todo', priority: 'medium', due_date: '', assignee_id: '' })
+      setFormData({ title: '', description: '', status: defaultStatus || 'todo', priority: 'medium', due_date: '', assignee_id: '', billable: true })
+      setSelectedProjectId(projectId || '')
       onSuccess?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
@@ -85,6 +101,19 @@ export function TaskForm({ projectId, task, defaultStatus, onSuccess, trigger }:
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>{task ? 'Edit Task' : 'New Task'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!task && !projectId && projects && projects.length > 0 && (
+            <div className="space-y-2">
+              <Label>Project *</Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger><SelectValue placeholder="Select a project" /></SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Title *</Label>
             <Input value={formData.title} onChange={(e) => set('title', e.target.value)} placeholder="Task title" required />
@@ -123,9 +152,19 @@ export function TaskForm({ projectId, task, defaultStatus, onSuccess, trigger }:
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="task-billable"
+              checked={formData.billable}
+              onChange={(e) => setFormData((p) => ({ ...p, billable: e.target.checked }))}
+              className="rounded"
+            />
+            <Label htmlFor="task-billable" className="cursor-pointer">Billable</Label>
+          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" disabled={loading || !formData.title.trim()}>{loading ? 'Saving...' : task ? 'Update' : 'Create'}</Button>
+            <Button type="submit" disabled={loading || !formData.title.trim() || (!task && !selectedProjectId)}>{loading ? 'Saving...' : task ? 'Update' : 'Create'}</Button>
           </div>
         </form>
       </DialogContent>
