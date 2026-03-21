@@ -210,6 +210,7 @@ export type Database = {
           position: number
           tags: string[]
           completed_at: string | null
+          archived_at: string | null
           created_at: string
           updated_at: string
         }
@@ -240,6 +241,7 @@ export type Database = {
           position?: number
           tags?: string[]
           completed_at?: string | null
+          archived_at?: string | null
         }
       }
       notes: {
