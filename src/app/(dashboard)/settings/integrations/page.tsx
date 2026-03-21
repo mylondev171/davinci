@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, XCircle, ExternalLink } from 'lucide-react'
+import { CheckCircle, XCircle, ExternalLink, Copy, Trash2, Plus, Clock } from 'lucide-react'
+import { useApi } from '@/lib/hooks/use-api'
 
 interface Integration {
   provider: string
@@ -29,12 +30,21 @@ export default function IntegrationsPage() {
   )
 }
 
+interface McpKey {
+  id: string
+  name: string
+  created_at: string
+  last_used_at: string | null
+  is_active: boolean
+}
+
 function IntegrationsContent() {
   const { currentOrg } = useOrg()
   const { isOwner, isAdmin, can } = usePermissions()
   const canManage = isOwner || isAdmin
   const searchParams = useSearchParams()
   const supabase = createClient()
+  const { apiFetch } = useApi()
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [myGoogleConnected, setMyGoogleConnected] = useState<Integration | null>(null)
   const [semrushKey, setSemrushKey] = useState('')
@@ -42,6 +52,9 @@ function IntegrationsContent() {
   const [claudeKey, setClaudeKey] = useState('')
   const [geminiKey, setGeminiKey] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
+  const [mcpKeys, setMcpKeys] = useState<McpKey[]>([])
+  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null)
+  const [generatingMcp, setGeneratingMcp] = useState(false)
 
   useEffect(() => {
     const success = searchParams.get('success')
@@ -79,6 +92,49 @@ function IntegrationsContent() {
   useEffect(() => {
     fetchIntegrations()
   }, [fetchIntegrations])
+
+  const fetchMcpKeys = useCallback(async () => {
+    if (!currentOrg) return
+    try {
+      const { data } = await apiFetch('/api/mcp-keys')
+      setMcpKeys(data || [])
+    } catch { /* non-critical */ }
+  }, [apiFetch, currentOrg])
+
+  useEffect(() => {
+    if (canManage) fetchMcpKeys()
+  }, [fetchMcpKeys, canManage])
+
+  const handleGenerateMcpKey = async () => {
+    setGeneratingMcp(true)
+    setNewlyGeneratedKey(null)
+    try {
+      const { data } = await apiFetch('/api/mcp-keys', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Coworker AI' }),
+      })
+      setNewlyGeneratedKey(data.key)
+      fetchMcpKeys()
+    } catch {
+      toast.error('Failed to generate API key')
+    } finally {
+      setGeneratingMcp(false)
+    }
+  }
+
+  const handleRevokeMcpKey = async (keyId: string) => {
+    try {
+      await apiFetch(`/api/mcp-keys/${keyId}`, { method: 'DELETE' })
+      setMcpKeys((prev) => prev.filter((k) => k.id !== keyId))
+      toast.success('Key revoked')
+    } catch {
+      toast.error('Failed to revoke key')
+    }
+  }
+
+  const mcpServerUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/mcp`
+    : '/api/mcp'
 
   const isOrgConnected = (provider: string) =>
     integrations.find((i) => i.provider === provider && i.is_active)
@@ -478,6 +534,119 @@ function IntegrationsContent() {
             </Card>
 
           </div>
+        </div>
+
+        {/* Coworker AI / MCP */}
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Automations</h2>
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-violet-600 flex items-center justify-center text-white font-bold text-sm">
+                    CW
+                  </div>
+                  <div>
+                    <CardTitle className="text-foreground">Coworker AI (MCP)</CardTitle>
+                    <CardDescription>Connect Coworker AI to read and write your CRM via MCP</CardDescription>
+                  </div>
+                </div>
+                {mcpKeys.some((k) => k.is_active) ? (
+                  <Badge variant="outline" className="border-green-500/20 text-green-400">
+                    <CheckCircle className="mr-1 h-3 w-3" /> Active
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-border text-muted-foreground">
+                    <XCircle className="mr-1 h-3 w-3" /> No keys
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {canManage ? (
+                <>
+                  {/* Server URL */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">MCP Server URL</Label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-muted px-3 py-2 rounded border border-border text-foreground truncate">
+                        {mcpServerUrl}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { navigator.clipboard.writeText(mcpServerUrl); toast.success('URL copied') }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Newly generated key — shown once */}
+                  {newlyGeneratedKey && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-yellow-400">New API Key — copy it now, it won&apos;t be shown again</Label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 rounded text-yellow-300 break-all">
+                          {newlyGeneratedKey}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { navigator.clipboard.writeText(newlyGeneratedKey!); toast.success('Key copied') }}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Existing active keys */}
+                  {mcpKeys.filter((k) => k.is_active).length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Active Keys</Label>
+                      <div className="space-y-1">
+                        {mcpKeys.filter((k) => k.is_active).map((key) => (
+                          <div key={key.id} className="flex items-center justify-between px-3 py-2 rounded border border-border bg-muted/30">
+                            <div>
+                              <span className="text-sm text-foreground">{key.name}</span>
+                              {key.last_used_at && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  <Clock className="inline h-3 w-3 mr-0.5" />
+                                  Last used {new Date(key.last_used_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleRevokeMcpKey(key.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generate button + instructions */}
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-xs text-muted-foreground">
+                      Add the server URL and API key to Coworker AI → Connectors → MCP.
+                    </p>
+                    <Button size="sm" onClick={handleGenerateMcpKey} disabled={generatingMcp}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      {generatingMcp ? 'Generating...' : 'Generate Key'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">Only admins can manage MCP connections.</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
       </div>
