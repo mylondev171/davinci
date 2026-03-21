@@ -81,16 +81,17 @@ export function KanbanCard({ task, isOverlay, onTaskEdit }: KanbanCardProps) {
       >
         <TaskForm
           projectId={task.project_id}
-          task={{ ...task, description: task.description, assignee_id: task.assignee_id }}
+          task={{ id: task.id, project_id: task.project_id, title: task.title, description: task.description, status: task.status, priority: task.priority, due_date: task.due_date, assignee_id: task.assignee_id, billable: task.billable }}
           onSuccess={onTaskEdit}
           trigger={<Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground"><Pencil className="h-3 w-3" /></Button>}
         />
         <TimeEntryForm
           taskId={task.id}
           taskTitle={task.title}
+          defaultBillable={task.billable}
           trigger={<Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground">Log</Button>}
         />
-        <TimerWidget taskId={task.id} taskTitle={task.title} />
+        <TimerWidget taskId={task.id} taskTitle={task.title} defaultBillable={task.billable} />
         <Button
           variant="ghost" size="sm"
           className="h-6 px-2 text-xs text-muted-foreground hover:text-orange-400"
