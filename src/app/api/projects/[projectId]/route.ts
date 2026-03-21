@@ -16,7 +16,7 @@ export async function GET(
     .select(`
       *,
       clients(id, company_name),
-      tasks(*, profiles:assignee_id(full_name, avatar_url)),
+      tasks(*),
       milestones(*),
       project_members(user_id, role, profiles:user_id(full_name, avatar_url))
     `)
@@ -25,7 +25,37 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
 
-  return NextResponse.json({ data })
+  // Fetch assignee profiles separately (no direct FK Supabase can follow)
+  const assigneeIds = [...new Set(
+    (data.tasks ?? [])
+      .map((t: { assignee_id: string | null }) => t.assignee_id)
+      .filter(Boolean)
+  )] as string[]
+
+  let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {}
+  if (assigneeIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', assigneeIds)
+    if (profiles) {
+      profilesMap = Object.fromEntries(
+        profiles.map((p: { id: string; full_name: string | null; avatar_url: string | null }) => [
+          p.id,
+          { full_name: p.full_name, avatar_url: p.avatar_url }
+        ])
+      )
+    }
+  }
+
+  const tasksWithProfiles = (data.tasks ?? []).map(
+    (task: { assignee_id: string | null; [key: string]: unknown }) => ({
+      ...task,
+      profiles: task.assignee_id ? profilesMap[task.assignee_id] ?? null : null,
+    })
+  )
+
+  return NextResponse.json({ data: { ...data, tasks: tasksWithProfiles } })
 }
 
 export async function PUT(
