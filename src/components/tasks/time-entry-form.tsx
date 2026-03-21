@@ -21,9 +21,10 @@ interface Props {
   onOpenChange?: (open: boolean) => void
   onSuccess?: () => void
   trigger?: React.ReactNode
+  defaultBillable?: boolean
 }
 
-export function TimeEntryForm({ taskId, taskTitle, entry, prefillHours, open: controlledOpen, onOpenChange, onSuccess, trigger }: Props) {
+export function TimeEntryForm({ taskId, taskTitle, entry, prefillHours, open: controlledOpen, onOpenChange, onSuccess, trigger, defaultBillable }: Props) {
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
   const open = isControlled ? controlledOpen : internalOpen
@@ -42,7 +43,7 @@ export function TimeEntryForm({ taskId, taskTitle, entry, prefillHours, open: co
       setDate(entry?.date ?? today)
       setHours(entry?.hours?.toString() ?? prefillHours?.toString() ?? '')
       setNote(entry?.note ?? '')
-      setBillable(entry?.billable ?? true)
+      setBillable(entry?.billable ?? defaultBillable ?? true)
     }
   }, [open, entry, prefillHours, today])
 
