@@ -30,14 +30,16 @@ function formatElapsed(startedAt: string): string {
   return h > 0 ? `${h}:${String(m % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${m}:${String(s % 60).padStart(2, '0')}`
 }
 
-interface Props { taskId: string; taskTitle: string; onSuccess?: () => void }
+interface Props { taskId: string; taskTitle: string; onSuccess?: () => void; defaultBillable?: boolean }
 
-export function TimerWidget({ taskId, taskTitle, onSuccess }: Props) {
+export function TimerWidget({ taskId, taskTitle, onSuccess, defaultBillable }: Props) {
   const [active, setActive] = useState<TimerState | null>(null)
   const [elapsed, setElapsed] = useState('')
   const [saveOpen, setSaveOpen] = useState(false)
   const [prefillHours, setPrefillHours] = useState<number | undefined>()
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const defaultBillableRef = useRef(defaultBillable)
+  defaultBillableRef.current = defaultBillable
 
   const syncFromStorage = useCallback(() => {
     const t = readTimer()
@@ -109,6 +111,7 @@ export function TimerWidget({ taskId, taskTitle, onSuccess }: Props) {
         prefillHours={prefillHours}
         open={saveOpen} onOpenChange={setSaveOpen}
         onSuccess={onSuccess}
+        defaultBillable={defaultBillableRef.current}
       />
     </span>
   )
