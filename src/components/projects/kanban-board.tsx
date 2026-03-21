@@ -46,7 +46,7 @@ export function KanbanBoard({ tasks, onTaskUpdate, projectId }: KanbanBoardProps
   )
 
   const getTasksByStatus = useCallback(
-    (status: string) => tasks.filter((t) => t.status === status),
+    (status: string) => tasks.filter((t) => t.status === status && !t.archived_at),
     [tasks]
   )
 
@@ -111,7 +111,7 @@ export function KanbanBoard({ tasks, onTaskUpdate, projectId }: KanbanBoardProps
                 strategy={verticalListSortingStrategy}
               >
                 {columnTasks.map((task) => (
-                  <KanbanCard key={task.id} task={task} />
+                  <KanbanCard key={task.id} task={task} onTaskEdit={onTaskUpdate} />
                 ))}
               </SortableContext>
             </KanbanColumn>
