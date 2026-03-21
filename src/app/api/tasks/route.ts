@@ -16,10 +16,18 @@ export async function GET(request: NextRequest) {
     .select('*, projects(id, name, clients(id, company_name))')
     .eq('org_id', orgId)
     .order('due_date', { ascending: true, nullsFirst: false })
+    .is('archived_at', null)
+
+  const clientId = searchParams.get('client_id')
 
   if (assigneeId) query = query.eq('assignee_id', assigneeId)
   if (status) query = query.eq('status', status)
   if (projectId) query = query.eq('project_id', projectId)
+  if (clientId) {
+    const { data: projects } = await supabase.from('projects').select('id').eq('client_id', clientId).eq('org_id', orgId)
+    if (!projects?.length) return NextResponse.json({ data: [] })
+    query = query.in('project_id', projects.map((p) => p.id))
+  }
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -85,4 +93,23 @@ export async function PUT(request: NextRequest) {
   }
 
   return NextResponse.json({ data })
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = await authenticateRequest(request, 'delete')
+  if (isErrorResponse(auth)) return auth
+  const { supabase, orgId } = auth
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const { error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', id)
+    .eq('org_id', orgId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
 }
