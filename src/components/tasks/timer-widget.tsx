@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button'
 import { TimeEntryForm } from './time-entry-form'
 import { Play, Square } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const STORAGE_KEY = 'active_timer'
 const STALE_MS = 12 * 60 * 60 * 1000
@@ -37,6 +47,7 @@ export function TimerWidget({ taskId, taskTitle, onSuccess, defaultBillable }: P
   const [elapsed, setElapsed] = useState('')
   const [saveOpen, setSaveOpen] = useState(false)
   const [prefillHours, setPrefillHours] = useState<number | undefined>()
+  const [switchDialog, setSwitchDialog] = useState<{ pendingTask: TimerState } | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const defaultBillableRef = useRef(defaultBillable)
   defaultBillableRef.current = defaultBillable
@@ -71,16 +82,21 @@ export function TimerWidget({ taskId, taskTitle, onSuccess, defaultBillable }: P
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [active, taskId])
 
-  const handleStart = () => {
-    const current = readTimer()
-    if (current && current.taskId !== taskId) {
-      if (!window.confirm(`Stop timing "${current.taskTitle}" (time not saved) and start "${taskTitle}"?`)) return
-    }
-    const t: TimerState = { taskId, taskTitle, startedAt: new Date().toISOString() }
+  const doStart = (title: string, id: string) => {
+    const t: TimerState = { taskId: id, taskTitle: title, startedAt: new Date().toISOString() }
     writeTimer(t)
     setActive(t)
     setElapsed('0:00')
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+  }
+
+  const handleStart = () => {
+    const current = readTimer()
+    if (current && current.taskId !== taskId) {
+      setSwitchDialog({ pendingTask: current })
+      return
+    }
+    doStart(taskTitle, taskId)
   }
 
   const handleStop = () => {
@@ -113,6 +129,20 @@ export function TimerWidget({ taskId, taskTitle, onSuccess, defaultBillable }: P
         onSuccess={onSuccess}
         defaultBillable={defaultBillableRef.current}
       />
+      <AlertDialog open={switchDialog !== null} onOpenChange={(open) => { if (!open) setSwitchDialog(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch Timer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stop timing &ldquo;{switchDialog?.pendingTask.taskTitle}&rdquo; (time not saved) and start &ldquo;{taskTitle}&rdquo;?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSwitchDialog(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setSwitchDialog(null); doStart(taskTitle, taskId) }}>Switch</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </span>
   )
 }

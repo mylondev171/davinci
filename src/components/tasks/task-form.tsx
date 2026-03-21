@@ -101,6 +101,9 @@ export function TaskForm({ projectId, projects, task, defaultStatus, onSuccess, 
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>{task ? 'Edit Task' : 'New Task'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!task && !projectId && projects !== undefined && projects.length === 0 && (
+            <p className="text-sm text-muted-foreground">No projects yet. Create a project first to add tasks.</p>
+          )}
           {!task && !projectId && projects && projects.length > 0 && (
             <div className="space-y-2">
               <Label>Project *</Label>
@@ -122,6 +125,19 @@ export function TaskForm({ projectId, projects, task, defaultStatus, onSuccess, 
             <Label>Description</Label>
             <Textarea value={formData.description} onChange={(e) => set('description', e.target.value)} placeholder="Details..." className="min-h-[60px]" />
           </div>
+          {task && (
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={formData.status} onValueChange={(v) => set('status', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['todo', 'in_progress', 'in_review', 'blocked', 'done'].map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Priority</Label>

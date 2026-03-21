@@ -45,7 +45,7 @@ export function TimeEntryForm({ taskId, taskTitle, entry, prefillHours, open: co
       setNote(entry?.note ?? '')
       setBillable(entry?.billable ?? defaultBillable ?? true)
     }
-  }, [open, entry, prefillHours, today])
+  }, [open, entry, prefillHours, today, defaultBillable])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

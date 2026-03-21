@@ -57,15 +57,27 @@ export function KanbanCard({ task, isOverlay, onTaskEdit }: KanbanCardProps) {
       className={cn('rounded-lg border border-border bg-card p-3 cursor-grab active:cursor-grabbing', isDragging && 'opacity-50', isOverlay && 'shadow-xl border-blue-500/30')}
     >
       <p className="text-sm font-medium text-foreground">{task.title}</p>
+      {task.description && (
+        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
+      )}
       <div className="flex items-center justify-between mt-2">
         <StatusBadge status={task.priority} />
         <div className="flex items-center gap-2">
-          {task.due_date && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
-          )}
+          {task.due_date && (() => {
+            const dueDate = new Date(task.due_date)
+            const showYear = dueDate.getFullYear() !== new Date().getFullYear()
+            const formatted = dueDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              ...(showYear ? { year: 'numeric' } : {}),
+            })
+            return (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                {formatted}
+              </span>
+            )
+          })()}
           {task.profiles && (
             <Avatar className="h-5 w-5">
               <AvatarImage src={task.profiles.avatar_url || ''} />

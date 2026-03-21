@@ -62,9 +62,8 @@ export default function ClientDetailPage() {
     try {
       const { data } = await apiFetch(`/api/clients/${clientId}`)
       setClient(data)
-    } catch (error) {
-      console.error('Error fetching client:', error)
-      toast.error('Client not found')
+    } catch {
+      toast.error('Failed to load client')
     } finally {
       setLoading(false)
     }
@@ -154,6 +153,26 @@ export default function ClientDetailPage() {
       toast.success('Note deleted')
     } catch (error) {
       toast.error('Failed to delete note')
+    }
+  }
+
+  const handleDeleteContact = async (contactId: string) => {
+    try {
+      await apiFetch(`/api/contacts?id=${contactId}`, { method: 'DELETE' })
+      fetchClient()
+      toast.success('Contact deleted')
+    } catch {
+      toast.error('Failed to delete contact')
+    }
+  }
+
+  const handleTogglePinNote = async (noteId: string, pinned: boolean) => {
+    try {
+      await apiFetch('/api/notes', { method: 'PUT', body: JSON.stringify({ id: noteId, pinned: !pinned }) })
+      fetchClient()
+      toast.success(pinned ? 'Note unpinned' : 'Note pinned')
+    } catch {
+      toast.error('Failed to update note')
     }
   }
 
@@ -283,6 +302,44 @@ export default function ClientDetailPage() {
                             </span>
                           )}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <ContactForm
+                          clientId={clientId}
+                          contact={contact}
+                          onSuccess={fetchClient}
+                          trigger={
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          }
+                        />
+                        {can('delete') && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-400">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete {contact.first_name} {contact.last_name}?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete this contact. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteContact(contact.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </div>
                   ))
@@ -416,8 +473,8 @@ export default function ClientDetailPage() {
           </Card>
 
           {/* Notes list */}
-          {client.notes?.map((note) => (
-            <Card key={note.id} className="border-border bg-card">
+          {client.notes?.slice().sort((a, b) => Number(b.pinned) - Number(a.pinned)).map((note) => (
+            <Card key={note.id} className={`border-border bg-card ${note.pinned ? 'ring-1 ring-blue-400/30' : ''}`}>
               <CardContent className="pt-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -427,16 +484,27 @@ export default function ClientDetailPage() {
                       {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
                     </p>
                   </div>
-                  {can('delete') && (
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-red-400"
-                      onClick={() => handleDeleteNote(note.id)}
+                      className={`h-6 w-6 ${note.pinned ? 'text-blue-400' : 'text-muted-foreground hover:text-blue-400'}`}
+                      title={note.pinned ? 'Unpin note' : 'Pin note'}
+                      onClick={() => handleTogglePinNote(note.id, note.pinned)}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Pin className="h-3 w-3" />
                     </Button>
-                  )}
+                    {can('delete') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-red-400"
+                        onClick={() => handleDeleteNote(note.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

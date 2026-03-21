@@ -11,12 +11,19 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const projectId = searchParams.get('project_id')
 
+  const archived = searchParams.get('archived') === 'true'
+
   let query = supabase
     .from('tasks')
     .select('*, projects(id, name, clients(id, company_name))')
     .eq('org_id', orgId)
     .order('due_date', { ascending: true, nullsFirst: false })
-    .is('archived_at', null)
+
+  if (archived) {
+    query = query.not('archived_at', 'is', null)
+  } else {
+    query = query.is('archived_at', null)
+  }
 
   const clientId = searchParams.get('client_id')
 
@@ -61,6 +68,8 @@ export async function PUT(request: NextRequest) {
   const body = await request.json()
   const { id, ...updates } = body
 
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
   // If completing a task, set completed_at
   if (updates.status === 'done') {
     updates.completed_at = new Date().toISOString()
@@ -72,6 +81,7 @@ export async function PUT(request: NextRequest) {
     .from('tasks')
     .update(updates)
     .eq('id', id)
+    .eq('org_id', orgId)
     .select('*')
     .single()
 

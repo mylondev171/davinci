@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useApi } from '@/lib/hooks/use-api'
 import { useOrg } from '@/providers/org-provider'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -21,8 +22,10 @@ type Client = Database['public']['Tables']['clients']['Row'] & {
 type SortField = 'company_name' | 'industry' | 'status' | 'pipeline_stage' | 'updated_at'
 
 export function ClientList() {
-  const [clients, setClients] = useState<Client[]>([])
+  const [allClients, setAllClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<SortField>('updated_at')
@@ -31,7 +34,7 @@ export function ClientList() {
   const { apiFetch } = useApi()
   const { currentOrg } = useOrg()
 
-  const fetchClients = useCallback(async () => {
+  const fetchClients = useCallback(async (currentPage: number, append: boolean) => {
     if (!currentOrg) return
     setLoading(true)
     try {
@@ -40,18 +43,33 @@ export function ClientList() {
       if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter)
       params.set('sort_by', sortBy)
       params.set('sort_dir', sortDir)
-      const { data } = await apiFetch(`/api/clients?${params}`)
-      setClients(data || [])
-    } catch (error) {
-      console.error('Error fetching clients:', error)
+      params.set('page', String(currentPage))
+      params.set('limit', '50')
+      const { data, count } = await apiFetch(`/api/clients?${params}`)
+      setTotalCount(count ?? 0)
+      if (append) {
+        setAllClients((prev) => [...prev, ...(data || [])])
+      } else {
+        setAllClients(data || [])
+      }
+    } catch {
+      // Error handled silently — list just won't update
     } finally {
       setLoading(false)
     }
   }, [apiFetch, currentOrg, search, statusFilter, sortBy, sortDir])
 
+  // When filters/sort change, reset to page 1 and replace list
   useEffect(() => {
-    fetchClients()
-  }, [fetchClients])
+    setPage(1)
+    fetchClients(1, false)
+  }, [search, statusFilter, sortBy, sortDir, currentOrg]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When page increases beyond 1, append
+  useEffect(() => {
+    if (page === 1) return
+    fetchClients(page, true)
+  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
@@ -61,6 +79,8 @@ export function ClientList() {
       setSortDir(field === 'company_name' || field === 'industry' ? 'asc' : 'desc')
     }
   }
+
+  const hasMore = allClients.length < totalCount
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortBy !== field) return <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />
@@ -81,7 +101,7 @@ export function ClientList() {
     </TableHead>
   )
 
-  if (loading) return <LoadingSpinner />
+  if (loading && allClients.length === 0) return <LoadingSpinner />
 
   return (
     <div className="space-y-4">
@@ -109,63 +129,78 @@ export function ClientList() {
             <SelectItem value="churned">Churned</SelectItem>
           </SelectContent>
         </Select>
-        <ClientForm onSuccess={fetchClients} />
+        <ClientForm onSuccess={() => { setPage(1); fetchClients(1, false) }} />
       </div>
 
       {/* Table */}
-      {clients.length === 0 ? (
+      {allClients.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No clients yet"
           description="Add your first client to start tracking relationships and projects."
         />
       ) : (
-        <div className="rounded-lg border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <SortableHead field="company_name">Company</SortableHead>
-                <SortableHead field="industry">Industry</SortableHead>
-                <TableHead className="text-muted-foreground">Primary Contact</TableHead>
-                <SortableHead field="status">Status</SortableHead>
-                <SortableHead field="pipeline_stage">Pipeline</SortableHead>
-                <SortableHead field="updated_at">Updated</SortableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((client) => {
-                const primaryContact = client.contacts?.find((c) => c.is_primary) || client.contacts?.[0]
-                return (
-                  <TableRow
-                    key={client.id}
-                    className="border-border cursor-pointer hover:bg-accent/50"
-                    onClick={() => router.push(`/clients/${client.id}`)}
-                  >
-                    <TableCell className="font-medium text-foreground">
-                      {client.company_name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {client.industry || '\u2014'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {primaryContact
-                        ? `${primaryContact.first_name} ${primaryContact.last_name}`
-                        : '\u2014'}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={client.status} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={client.pipeline_stage} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(client.updated_at).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+        <div className="space-y-2">
+          <div className="rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <SortableHead field="company_name">Company</SortableHead>
+                  <SortableHead field="industry">Industry</SortableHead>
+                  <TableHead className="text-muted-foreground">Primary Contact</TableHead>
+                  <SortableHead field="status">Status</SortableHead>
+                  <SortableHead field="pipeline_stage">Pipeline</SortableHead>
+                  <SortableHead field="updated_at">Updated</SortableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allClients.map((client) => {
+                  const primaryContact = client.contacts?.find((c) => c.is_primary) || client.contacts?.[0]
+                  return (
+                    <TableRow
+                      key={client.id}
+                      className="border-border cursor-pointer hover:bg-accent/50"
+                      onClick={() => router.push(`/clients/${client.id}`)}
+                    >
+                      <TableCell className="font-medium text-foreground">
+                        {client.company_name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {client.industry || '\u2014'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {primaryContact
+                          ? `${primaryContact.first_name} ${primaryContact.last_name}`
+                          : '\u2014'}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={client.status} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={client.pipeline_stage} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {new Date(client.updated_at).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={loading}
+              >
+                Load more
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

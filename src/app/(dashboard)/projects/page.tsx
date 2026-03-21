@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/shared/loading-spinner'
 import { ProjectForm } from '@/components/projects/project-form'
 import { Button } from '@/components/ui/button'
 import { FolderKanban, Search, Calendar, LayoutGrid, List } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 
 type Project = Database['public']['Tables']['projects']['Row'] & {
@@ -44,8 +45,8 @@ export default function ProjectsPage() {
       if (statusFilter !== 'all') params.set('status', statusFilter)
       const { data } = await apiFetch(`/api/projects?${params}`)
       setProjects(data || [])
-    } catch (error) {
-      console.error('Error fetching projects:', error)
+    } catch {
+      toast.error('Failed to load projects')
     } finally {
       setLoading(false)
     }

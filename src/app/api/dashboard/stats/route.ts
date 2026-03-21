@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
       .from('tasks')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId)
-      .in('status', ['todo', 'in_progress', 'in_review', 'blocked']),
+      .in('status', ['todo', 'in_progress', 'in_review', 'blocked'])
+      .is('archived_at', null),
     supabase
       .from('email_threads')
       .select('id', { count: 'exact', head: true })

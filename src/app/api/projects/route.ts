@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('projects')
-    .select('*, clients(id, company_name), tasks(id, status)', { count: 'exact' })
+    .select('*, clients(id, company_name), tasks(id, status, archived_at)', { count: 'exact' })
     .eq('org_id', orgId)
     .order('updated_at', { ascending: false })
 
@@ -24,7 +24,13 @@ export async function GET(request: NextRequest) {
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ data, count })
+  const filtered = data?.map(p => ({
+    ...p,
+    tasks: p.tasks?.filter((t: { archived_at: string | null }) => !t.archived_at)
+      .map(({ archived_at: _archived_at, ...rest }: { archived_at: string | null; [key: string]: unknown }) => rest),
+  }))
+
+  return NextResponse.json({ data: filtered, count })
 }
 
 export async function POST(request: NextRequest) {

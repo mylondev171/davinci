@@ -33,7 +33,7 @@ export function KanbanColumn({ id, title, count, projectId, onTaskCreated, child
         </div>
         <TaskForm
           projectId={projectId}
-          defaultStatus={id as 'todo' | 'in_progress' | 'in_review' | 'done'}
+          defaultStatus={id as 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done'}
           onSuccess={onTaskCreated}
           trigger={
             <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">

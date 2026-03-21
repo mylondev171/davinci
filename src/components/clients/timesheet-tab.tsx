@@ -10,6 +10,16 @@ import { TimeEntryForm } from '@/components/tasks/time-entry-form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Trash2, Download, FileText } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface Entry {
   id: string; date: string; hours: number; note: string | null; billable: boolean
@@ -31,6 +41,7 @@ export function ClientTimesheetTab({ clientId, clientName, projects }: Props) {
   const { apiFetch } = useApi()
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [start, setStart] = useState(startOfMonth)
   const [end, setEnd] = useState(today)
   const [projectFilter, setProjectFilter] = useState('all')
@@ -58,7 +69,6 @@ export function ClientTimesheetTab({ clientId, clientName, projects }: Props) {
   useEffect(() => { fetchEntries() }, [fetchEntries])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this time entry?')) return
     try {
       await apiFetch(`/api/time-entries/${id}`, { method: 'DELETE' })
       fetchEntries()
@@ -182,7 +192,7 @@ export function ClientTimesheetTab({ clientId, clientName, projects }: Props) {
                         entry={e}
                         onSuccess={fetchEntries}
                       />
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-red-400" onClick={() => handleDelete(e.id)}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-red-400" onClick={() => setDeletingId(e.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -193,6 +203,18 @@ export function ClientTimesheetTab({ clientId, clientName, projects }: Props) {
           </Table>
         </div>
       )}
+      <AlertDialog open={deletingId !== null} onOpenChange={(open) => { if (!open) setDeletingId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Time Entry?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (deletingId) { handleDelete(deletingId); setDeletingId(null) } }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

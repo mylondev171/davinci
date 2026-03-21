@@ -26,6 +26,7 @@ const columns = [
   { id: 'todo', title: 'To Do' },
   { id: 'in_progress', title: 'In Progress' },
   { id: 'in_review', title: 'In Review' },
+  { id: 'blocked', title: 'Blocked' },
   { id: 'done', title: 'Done' },
 ] as const
 
