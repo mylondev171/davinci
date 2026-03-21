@@ -42,12 +42,18 @@ The tasks system lacks full editability from the `/tasks` list page: no edit but
 project_members(user_id, role)   // was: project_members(user_id, role, profiles:user_id(...))
 ```
 
-Post-merge shape:
+**Post-merge API response shape** (what consumers receive):
 ```ts
-project_members: [{ user_id, role, profiles: { full_name, avatar_url } | null }]
+project_members: Array<{
+  user_id: string
+  role: string
+  profiles: { full_name: string | null; avatar_url: string | null } | null
+}>
 ```
 
-No schema change. No frontend change.
+This is identical to the shape consumers already expect — the field name `profiles` is preserved. No frontend consumers need to change.
+
+No schema change.
 
 ---
 
@@ -55,47 +61,75 @@ No schema change. No frontend change.
 
 **Component:** `TaskForm` (`src/components/tasks/task-form.tsx`)
 
-Currently requires a `projectId` prop (used when creating tasks). For editing, `projectId` is available from the task itself (`task.project_id`). No change needed for edit mode.
+For editing, `projectId` comes from `task.project_id`. No change to the edit path.
 
-**UI change:** Add a pencil icon button to each task row in the Actions column on:
+**UI change:** Add a pencil icon button to each task row's Actions cell on:
 - `/tasks` page (`src/app/(dashboard)/tasks/page.tsx`)
 - Client tasks tab (`src/components/clients/tasks-tab.tsx`)
 
-The button renders `<TaskForm projectId={task.project_id} task={task} onSuccess={fetchTasks} trigger={<PencilIcon />} />`.
+```tsx
+<TaskForm
+  projectId={task.project_id}
+  task={{ ...task }}
+  onSuccess={fetchTasks}
+  trigger={<Button variant="ghost" size="sm" className="h-6 w-6 p-0"><Pencil className="h-3 w-3" /></Button>}
+/>
+```
 
 ---
 
 ### 3. Creating Tasks from /tasks Page
 
-**Problem:** `TaskForm` requires a `projectId` prop. The `/tasks` page has no project context.
+**Problem:** `TaskForm` currently requires `projectId: string`. The `/tasks` page has no project context.
 
-**Solution:** Make `projectId` optional in `TaskForm`. When absent, render a project `<Select>` at the top of the form. The selected project id is used for the POST. Fetch the project list via `/api/projects` (already cached in the tasks page state — pass it as a prop or re-fetch inside the form).
+**Solution:** Make `projectId` optional (`projectId?: string`). Add an optional `projects` prop:
 
-**Simpler approach:** Pass the projects list (already fetched on the tasks page) as an optional `projects` prop to `TaskForm`. When `projectId` is not set and `projects` is provided, show the picker. When both are absent, disable the Create button.
+```ts
+interface TaskFormProps {
+  projectId?: string
+  projects?: { id: string; name: string }[]
+  task?: { ... }
+  ...
+}
+```
 
-**New button:** "New Task" button in the page header of `/tasks`, next to the filter controls. Renders `<TaskForm projects={projects} onSuccess={fetchTasks} />`.
+Internal state tracks `selectedProjectId` (initialized from `projectId` prop). Behavior by mode:
 
-No new API endpoints needed — creation still goes to `POST /api/projects/{projectId}/tasks`.
+- **Edit mode** (`task` is provided): `projectId` comes from `task.project_id`; no dropdown shown; `selectedProjectId` initialized to `task.project_id`.
+- **Create with prop** (`projectId` provided, no `task`): `selectedProjectId` initialized to `projectId`; no dropdown shown; existing behavior preserved.
+- **Create without prop** (`projectId` absent, `projects` provided): dropdown shown at top of form; `selectedProjectId` starts empty; submit **disabled** until a project is selected (guard: `!selectedProjectId || !formData.title.trim()`).
+
+On submit, the create POST uses `selectedProjectId`:
+```ts
+await apiFetch(`/api/projects/${selectedProjectId}/tasks`, { method: 'POST', body: JSON.stringify(payload) })
+```
+
+**"New Task" button:** Added to the header of `/tasks` page:
+```tsx
+<TaskForm projects={projects} onSuccess={fetchTasks} />
+```
+
+The `projects` state is already fetched on the page — pass it through. No new API calls needed.
 
 ---
 
 ### 4. Timer on Tasks Page
 
-`TimerWidget` is already built. Add it to each task row in the Actions column of:
+`TimerWidget` is already built and self-contained. Add it to each task row's Actions cell on:
 - `/tasks` page
 - Client tasks tab
 
 ```tsx
-<TimerWidget taskId={task.id} taskTitle={task.title} />
+<TimerWidget taskId={task.id} taskTitle={task.title} defaultBillable={task.billable} />
 ```
 
-The widget is self-contained (uses `localStorage` for cross-card sync) and handles start/stop/save inline.
+The widget uses `localStorage` for cross-card timer sync and handles start/stop/save inline.
 
 ---
 
 ### 5. Task-Level Billable Flag
 
-**Why task-level:** The `time_entries` table already has `billable BOOLEAN NOT NULL DEFAULT true`. When a user logs time, they can toggle billable. A task-level default makes this smarter — tasks marked non-billable (internal work, warranty fixes) pre-fill time entries as non-billable automatically.
+**Why task-level:** The `time_entries` table already has `billable BOOLEAN NOT NULL DEFAULT true`. A task-level default makes this smarter — tasks marked non-billable (internal work, warranty fixes) pre-fill time entries as non-billable automatically.
 
 **DB migration (`00026`):**
 ```sql
@@ -103,20 +137,52 @@ ALTER TABLE public.tasks
   ADD COLUMN billable BOOLEAN NOT NULL DEFAULT true;
 ```
 
-No index needed (not a filter column).
+No index needed (not a filter column). The `DEFAULT true` means existing rows and new inserts that omit `billable` get `true` automatically.
 
-**TypeScript types:** Add `billable: boolean` to `tasks` Row and `billable?: boolean` to tasks Update in `src/types/database.ts`.
+**TypeScript types** (`src/types/database.ts`):
+- `tasks Row`: add `billable: boolean`
+- `tasks Update`: add `billable?: boolean`
+- `tasks Insert`: no change needed — `DEFAULT true` covers omission; if explicitly setting, the `Update` type can be reused or it will still type-check via the column's default
 
-**TaskForm:** Add a `Switch` or checkbox labeled "Billable" below the Assignee field.
+**TaskForm:** Extend the `task?` prop interface to include `billable?: boolean`. Add a `Switch` (or checkbox) labeled "Billable" below the Assignee field. Initialized from `task?.billable ?? true`. Included in the submit payload for both create and update.
 
-**TimeEntryForm:** Already accepts `entry?.billable` for pre-fill. Add a `defaultBillable?: boolean` prop, used when `entry` is absent:
+**TimeEntryForm** (`src/components/tasks/time-entry-form.tsx`):
+
+Add `defaultBillable?: boolean` prop. Use it when no `entry` is present:
 ```ts
 setBillable(entry?.billable ?? defaultBillable ?? true)
 ```
 
-**Kanban card:** Pass `defaultBillable={task.billable}` to `<TimeEntryForm>` and `<TimerWidget>`. Timer widget already accepts `onSuccess`; add `defaultBillable` prop so it forwards to the save dialog.
+This is the only change — it's additive and backward-compatible.
 
-**Tasks page:** Pass `defaultBillable={task.billable}` to `<TimeEntryForm>` and `<TimerWidget>` in each row.
+**TimerWidget** (`src/components/tasks/timer-widget.tsx`):
+
+Add `defaultBillable?: boolean` prop. Store it in a ref. When the timer stops and opens `TimeEntryForm`, forward it:
+
+```tsx
+// In TimerWidget:
+const defaultBillableRef = useRef(defaultBillable)
+defaultBillableRef.current = defaultBillable  // keep in sync if prop changes
+
+// In the rendered TimeEntryForm (already rendered by TimerWidget on stop):
+<TimeEntryForm
+  taskId={taskId}
+  taskTitle={taskTitle}
+  prefillHours={prefillHours}
+  open={saveOpen}
+  onOpenChange={setSaveOpen}
+  onSuccess={onSuccess}
+  defaultBillable={defaultBillableRef.current}  // forwarded here
+/>
+```
+
+**Kanban card** (`src/components/projects/kanban-card.tsx`):
+
+Pass `defaultBillable={task.billable}` to both `<TimeEntryForm>` and `<TimerWidget>`.
+
+**Tasks page + client tasks tab:**
+
+Pass `defaultBillable={task.billable}` to both `<TimeEntryForm>` and `<TimerWidget>` in each row.
 
 ---
 
@@ -125,14 +191,14 @@ setBillable(entry?.billable ?? defaultBillable ?? true)
 | File | Change |
 |---|---|
 | `supabase/migrations/00026_add_tasks_billable.sql` | Create — add `billable` column to tasks |
-| `src/types/database.ts` | Add `billable` to tasks Row/Update |
-| `src/app/api/projects/[projectId]/route.ts` | Fix project_members profiles join |
-| `src/components/tasks/task-form.tsx` | Make `projectId` optional, add project picker, add billable toggle |
+| `src/types/database.ts` | Add `billable: boolean` to tasks Row; `billable?: boolean` to tasks Update |
+| `src/app/api/projects/[projectId]/route.ts` | Fix project_members profiles join — strip profiles from select, fetch separately, merge |
+| `src/components/tasks/task-form.tsx` | Make `projectId` optional; add `projects?` prop + project picker; add billable toggle |
 | `src/components/tasks/time-entry-form.tsx` | Add `defaultBillable?: boolean` prop |
-| `src/components/tasks/timer-widget.tsx` | Add `defaultBillable?: boolean` prop, forward to TimeEntryForm |
-| `src/app/(dashboard)/tasks/page.tsx` | Add edit button, "New Task" button, TimerWidget per row |
-| `src/components/clients/tasks-tab.tsx` | Add edit button, "New Task" button, TimerWidget per row |
-| `src/components/projects/kanban-card.tsx` | Pass `defaultBillable` to TimeEntryForm and TimerWidget |
+| `src/components/tasks/timer-widget.tsx` | Add `defaultBillable?: boolean` prop; forward to internal TimeEntryForm |
+| `src/app/(dashboard)/tasks/page.tsx` | Add edit button per row, "New Task" button in header, TimerWidget per row |
+| `src/components/clients/tasks-tab.tsx` | Add edit button per row, "New Task" button, TimerWidget per row |
+| `src/components/projects/kanban-card.tsx` | Pass `defaultBillable={task.billable}` to TimeEntryForm and TimerWidget |
 
 ---
 
@@ -140,29 +206,32 @@ setBillable(entry?.billable ?? defaultBillable ?? true)
 
 ```
 Task (billable: bool)
-  └── TaskForm sets task.billable
+  └── TaskForm sets task.billable on create/edit
   └── KanbanCard / tasks page row
         ├── TimerWidget(defaultBillable=task.billable)
-        │     └── on stop → TimeEntryForm(defaultBillable=task.billable, prefillHours)
+        │     └── on stop → TimeEntryForm(defaultBillable=task.billable, prefillHours=elapsed)
         └── TimeEntryForm(defaultBillable=task.billable)
-              └── POST /api/time-entries { billable: <from form> }
+              └── POST /api/time-entries { billable: <from form, user can override> }
 ```
 
 ---
 
 ## Error Handling
 
-- If project list fails to load in `TaskForm`, show an error toast and disable submit
-- Timer conflicts (another task already running) handled by existing `window.confirm` in `TimerWidget`
-- All mutations show toast success/error via existing pattern
+- If project list fails to load in `TaskForm` project picker, show an error toast and disable submit
+- If user submits `TaskForm` without selecting a project: submit button is disabled (no API call made)
+- Timer conflicts handled by existing `window.confirm` in `TimerWidget`
+- All mutations use existing toast success/error pattern
 
 ---
 
 ## Success Criteria
 
-1. Clicking into any project detail page loads successfully (no "Project not found")
-2. Every task row on `/tasks` has a pencil icon that opens `TaskForm` pre-filled
-3. "New Task" button on `/tasks` opens `TaskForm` with a project picker; task is created in the chosen project
-4. Every task row on `/tasks` has a timer start/stop button
-5. `TaskForm` has a Billable toggle; the value pre-fills the time-entry dialog when logging time
-6. Existing kanban card timer and log-time buttons pass `defaultBillable` correctly
+1. Clicking into any project detail page loads the project and its kanban board (no "Project not found")
+2. Every task row on `/tasks` has a pencil icon; clicking it opens `TaskForm` pre-filled with the task's current title, description, priority, due date, and assignee
+3. "New Task" button on `/tasks` opens `TaskForm` with a project dropdown; selecting a project and submitting creates the task under that project
+4. If "New Task" is clicked without selecting a project, the submit button remains disabled
+5. Every task row on `/tasks` has a timer start/stop button; starting it shows a running elapsed time display
+6. `TaskForm` displays a Billable toggle; saving a task with `billable=false` persists that value
+7. Opening the time-log dialog for a task with `billable=false` pre-fills the billable checkbox as unchecked
+8. Kanban card timer and log-time buttons correctly pre-fill billable from the task's setting
