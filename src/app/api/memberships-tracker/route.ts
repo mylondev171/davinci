@@ -19,7 +19,25 @@ export async function GET(request: NextRequest) {
 
   const flaggedCount = data?.filter((m) => m.flagged_for_removal).length || 0
 
-  return NextResponse.json({ data, flaggedCount })
+  // Fetch owner profiles separately
+  const ownerIds = [...new Set(data?.map((m) => m.owner_id).filter(Boolean))] as string[]
+  let ownersMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {}
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await adminSupabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', ownerIds)
+    if (profiles) {
+      ownersMap = Object.fromEntries(profiles.map((p) => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]))
+    }
+  }
+
+  const dataWithOwners = data?.map((m) => ({
+    ...m,
+    owner: m.owner_id ? ownersMap[m.owner_id] || null : null,
+  }))
+
+  return NextResponse.json({ data: dataWithOwners, flaggedCount })
 }
 
 export async function POST(request: NextRequest) {
@@ -28,7 +46,7 @@ export async function POST(request: NextRequest) {
   const { user, orgId } = auth
 
   const body = await request.json()
-  const { service_name, service_url, membership_level, cost, billing_cycle, flagged_for_removal } = body
+  const { service_name, service_url, membership_level, cost, billing_cycle, flagged_for_removal, owner_id } = body
 
   if (!service_name) {
     return NextResponse.json({ error: 'service_name is required' }, { status: 400 })
@@ -45,6 +63,7 @@ export async function POST(request: NextRequest) {
     cost: cost != null ? cost : null,
     billing_cycle: billing_cycle || null,
     flagged_for_removal: flagged_for_removal || false,
+    owner_id: owner_id || null,
   }
 
   if (flagged_for_removal) {

@@ -528,6 +528,7 @@ export type Database = {
           flagged_for_removal: boolean
           flagged_at: string | null
           last_reminder_sent_at: string | null
+          owner_id: string | null
           created_by: string
           created_at: string
           updated_at: string
@@ -541,6 +542,7 @@ export type Database = {
           billing_cycle?: 'monthly' | 'yearly' | null
           flagged_for_removal?: boolean
           flagged_at?: string | null
+          owner_id?: string | null
           created_by: string
         }
         Update: {
@@ -552,6 +554,7 @@ export type Database = {
           flagged_for_removal?: boolean
           flagged_at?: string | null
           last_reminder_sent_at?: string | null
+          owner_id?: string | null
         }
       }
       documents: {

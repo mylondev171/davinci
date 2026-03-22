@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest, isErrorResponse } from '@/lib/api-auth'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: NextRequest) {
   const auth = await authenticateRequest(request)
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('activities')
-    .select('*, profiles:actor_id(full_name, avatar_url)')
+    .select('*')
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -24,5 +25,24 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ data })
+  // Fetch actor profiles separately (no FK from actor_id to profiles)
+  const actorIds = [...new Set(data?.map((a) => a.actor_id).filter(Boolean))] as string[]
+  let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {}
+  if (actorIds.length > 0) {
+    const adminSupabase = createAdminClient()
+    const { data: profiles } = await adminSupabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', actorIds)
+    if (profiles) {
+      profilesMap = Object.fromEntries(profiles.map((p) => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]))
+    }
+  }
+
+  const dataWithProfiles = data?.map((a) => ({
+    ...a,
+    profiles: a.actor_id ? profilesMap[a.actor_id] || null : null,
+  }))
+
+  return NextResponse.json({ data: dataWithProfiles })
 }

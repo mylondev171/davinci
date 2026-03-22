@@ -19,11 +19,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DollarSign, AlertTriangle, CreditCard, Edit, Trash2, ExternalLink, Flag } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 
-type ServiceMembership = Database['public']['Tables']['service_memberships']['Row']
+type ServiceMembership = Database['public']['Tables']['service_memberships']['Row'] & {
+  owner: { full_name: string | null; avatar_url: string | null } | null
+}
 
 export default function MembershipsPage() {
   const [memberships, setMemberships] = useState<ServiceMembership[]>([])
@@ -163,6 +166,15 @@ export default function MembershipsPage() {
                         {membership.cost != null && (
                           <span className="text-sm text-muted-foreground">
                             ${Number(membership.cost).toFixed(2)}{membership.billing_cycle ? `/${membership.billing_cycle === 'monthly' ? 'mo' : 'yr'}` : ''}
+                          </span>
+                        )}
+                        {membership.owner && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Avatar className="h-4 w-4">
+                              <AvatarImage src={membership.owner.avatar_url || ''} />
+                              <AvatarFallback className="text-[8px]">{membership.owner.full_name?.[0] || '?'}</AvatarFallback>
+                            </Avatar>
+                            {membership.owner.full_name}
                           </span>
                         )}
                       </div>

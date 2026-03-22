@@ -31,6 +31,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   if (body.membership_level !== undefined) updates.membership_level = body.membership_level || null
   if (body.cost !== undefined) updates.cost = body.cost != null ? body.cost : null
   if (body.billing_cycle !== undefined) updates.billing_cycle = body.billing_cycle || null
+  if (body.owner_id !== undefined) updates.owner_id = body.owner_id || null
 
   // Handle flag toggling
   if (body.flagged_for_removal !== undefined) {

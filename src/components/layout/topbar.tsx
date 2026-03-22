@@ -14,13 +14,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  CommandDialog,
+  Command,
   CommandInput,
   CommandList,
   CommandEmpty,
   CommandGroup,
   CommandItem,
 } from '@/components/ui/command'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Search, LogOut, Building2, ChevronDown, Sun, Moon, Users, FolderKanban } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
@@ -150,43 +151,47 @@ export function Topbar() {
         </kbd>
       </button>
 
-      <CommandDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQuery('') }}>
-        <CommandInput
-          placeholder="Search clients, projects, tasks..."
-          value={query}
-          onValueChange={setQuery}
-        />
-        <CommandList>
-          {!searching && query.trim() && results.length === 0 && (
-            <CommandEmpty>No results found.</CommandEmpty>
-          )}
-          {!query.trim() && (
-            <CommandEmpty>Start typing to search...</CommandEmpty>
-          )}
-          {clientResults.length > 0 && (
-            <CommandGroup heading="Clients">
-              {clientResults.map((r) => (
-                <CommandItem key={r.id} onSelect={() => handleSelect(r.href)}>
-                  <Users className="h-4 w-4 shrink-0" />
-                  <span>{r.label}</span>
-                  {r.sublabel && <span className="text-muted-foreground text-xs ml-1">— {r.sublabel}</span>}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
-          {projectResults.length > 0 && (
-            <CommandGroup heading="Projects">
-              {projectResults.map((r) => (
-                <CommandItem key={r.id} onSelect={() => handleSelect(r.href)}>
-                  <FolderKanban className="h-4 w-4 shrink-0" />
-                  <span>{r.label}</span>
-                  {r.sublabel && <span className="text-muted-foreground text-xs ml-1">— {r.sublabel}</span>}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
-        </CommandList>
-      </CommandDialog>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQuery('') }}>
+        <DialogContent className="overflow-hidden p-0">
+          <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:text-muted-foreground **:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+            <CommandInput
+              placeholder="Search clients, projects, tasks..."
+              value={query}
+              onValueChange={setQuery}
+            />
+            <CommandList>
+              {!searching && query.trim() && results.length === 0 && (
+                <CommandEmpty>No results found.</CommandEmpty>
+              )}
+              {!query.trim() && (
+                <CommandEmpty>Start typing to search...</CommandEmpty>
+              )}
+              {clientResults.length > 0 && (
+                <CommandGroup heading="Clients">
+                  {clientResults.map((r) => (
+                    <CommandItem key={r.id} value={r.id} onSelect={() => handleSelect(r.href)}>
+                      <Users className="h-4 w-4 shrink-0" />
+                      <span>{r.label}</span>
+                      {r.sublabel && <span className="text-muted-foreground text-xs ml-1">— {r.sublabel}</span>}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {projectResults.length > 0 && (
+                <CommandGroup heading="Projects">
+                  {projectResults.map((r) => (
+                    <CommandItem key={r.id} value={r.id} onSelect={() => handleSelect(r.href)}>
+                      <FolderKanban className="h-4 w-4 shrink-0" />
+                      <span>{r.label}</span>
+                      {r.sublabel && <span className="text-muted-foreground text-xs ml-1">— {r.sublabel}</span>}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center gap-3">
         {/* Theme Toggle */}

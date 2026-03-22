@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useApi } from '@/lib/hooks/use-api'
 import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import type { Database } from '@/types/database'
 
 type ServiceMembership = Database['public']['Tables']['service_memberships']['Row']
+interface Member { user_id: string; profiles: { id: string; full_name: string | null; avatar_url: string | null } | null }
 
 interface MembershipFormProps {
   membership?: ServiceMembership
@@ -22,6 +24,7 @@ interface MembershipFormProps {
 export function MembershipForm({ membership, onSuccess, trigger }: MembershipFormProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [members, setMembers] = useState<Member[]>([])
   const { apiFetch } = useApi()
 
   const [formData, setFormData] = useState({
@@ -31,7 +34,25 @@ export function MembershipForm({ membership, onSuccess, trigger }: MembershipFor
     cost: membership?.cost?.toString() || '',
     billing_cycle: membership?.billing_cycle || '' as string,
     flagged_for_removal: membership?.flagged_for_removal || false,
+    owner_id: membership?.owner_id || '',
   })
+
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        service_name: membership?.service_name || '',
+        service_url: membership?.service_url || '',
+        membership_level: membership?.membership_level || '',
+        cost: membership?.cost?.toString() || '',
+        billing_cycle: membership?.billing_cycle || '',
+        flagged_for_removal: membership?.flagged_for_removal || false,
+        owner_id: membership?.owner_id || '',
+      })
+      if (members.length === 0) {
+        apiFetch('/api/memberships').then(({ data }) => setMembers(data || [])).catch(() => {})
+      }
+    }
+  }, [open, membership, members.length, apiFetch])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,6 +65,7 @@ export function MembershipForm({ membership, onSuccess, trigger }: MembershipFor
         cost: formData.cost ? parseFloat(formData.cost) : null,
         billing_cycle: formData.billing_cycle || null,
         flagged_for_removal: formData.flagged_for_removal,
+        owner_id: formData.owner_id || null,
       }
 
       if (membership) {
@@ -136,6 +158,28 @@ export function MembershipForm({ membership, onSuccess, trigger }: MembershipFor
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="owner_id">Owner</Label>
+            <Select value={formData.owner_id || 'none'} onValueChange={(v) => setFormData({ ...formData, owner_id: v === 'none' ? '' : v })}>
+              <SelectTrigger>
+                <SelectValue placeholder="No owner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No owner</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.user_id} value={m.user_id}>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-4 w-4">
+                        <AvatarImage src={m.profiles?.avatar_url || ''} />
+                        <AvatarFallback className="text-[8px]">{m.profiles?.full_name?.[0] || '?'}</AvatarFallback>
+                      </Avatar>
+                      {m.profiles?.full_name || m.user_id}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-2">
             <input
